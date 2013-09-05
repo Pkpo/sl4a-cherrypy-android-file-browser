@@ -1,14 +1,15 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 # 
-# Made by XaXa
-# 
 # version 0.1
 # 
 
 
-import os
+import os,time
 import socket,struct
+import cgi
+import uuid
+
 import cherrypy
 from cherrypy.lib.static import serve_file
 
@@ -152,10 +153,23 @@ foot="""
 </html>
 """
 
+dl_dir="/storage/sdcard0/Download/"
+
+class field(cgi.FieldStorage):
+    def make_file(self,binary=None):
+        self.t= file(os.path.join(dl_dir,self.filename),'wb')
+        return self.t
+
+
+def nobody():
+    cherrypy.request.process_request_body = False
+
+
+cherrypy.tools.nobody=cherrypy.Tool('before_request_body',nobody)
 
 
 _base_dir_=os.getcwd().split(os.path.sep)[0]+os.path.sep
-
+print os.getcwd()
 class Explore(object):
 
 	def default(self,*args):
@@ -174,30 +188,28 @@ class Explore(object):
 									if os.path.isdir('/'+'/'.join(args+(x,))) \
 									else hlist.format('file','/'+'/'.join(args+(x,)),x) \
 								for x in templst]))
-
 		return head+css+upload.format(temp_walk)+bod+foot
 	default.exposed = True
-
-	def upload(self, myFile):
+    
+	@cherrypy.tools.nobody()
+	def upload(self, *args):
 		out = """<html>
 	<body>
-		myFile length: %s<br />
-		myFile filename: %s<br />
-		myFile mime-type: %s
+		myFile Content-Length: %s<br />
+		name: %s<br/>
 		</body>
 	</html>"""
-		size = 0
-		while True:
-			data = myFile.file.read(8192)
-			if not data:
-				break
-			size += len(data)
-		return out % (size, myFile.filename, myFile.content_type)
+		print args
+		req = cherrypy.request
+		fieldStorage = field(fp = req.rfile,headers=req.headers,
+									environ={'REQUEST_METHOD':'POST'},
+									keep_blank_values=True)
+		print fieldStorage['myFile'].filename
+		return out % (req.headers['Content-Length'],fieldStorage['myFile'].filename)
 	upload.exposed = True
 
 
 
 cherrypy.server.socket_host="0.0.0.0"
-#cherrypy.config.update({'log.screen':False})
 if __name__ == '__main__':
 	cherrypy.quickstart(Explore())
